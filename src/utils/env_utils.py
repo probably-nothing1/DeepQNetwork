@@ -18,6 +18,24 @@ def get_video_filepath(env):
     return os.path.join(env.directory, filepath)
 
 
+class FrameBuffer(gym.ObservationWrapper):
+    def __init__(self, env, k_frames):
+        super().__init__(env)
+        old_space = self.observation_space
+        new_low = old_space.low.repeat(k_frames, axis=0)
+        new_high = old_space.high.repeat(k_frames, axis=0)
+        self.observation_space = gym.spaces.Box(low=new_low, high=new_high, dtype=np.float32)
+
+    def reset(self):
+        self.buffer = np.zeros_like(self.observation_space.low, dtype=np.float32)
+        return self.observation(self.env.reset())
+
+    def observation(self, observation):
+        self.buffer[:-1] = self.buffer[1:]
+        self.buffer[-1] = observation
+        return self.buffer
+
+
 class ProcessFrame(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -69,6 +87,7 @@ def create_environment(name, gym_make_kwargs=dict(), save_videos=False, wrapper_
     env = ProcessFrame(env)
     env = ScaleImage(env)
     env = ImageToPytorchChannelOrdering(env)
+    env = FrameBuffer(env, k_frames=4)
     if save_videos:
         env = EvalMonitor(env, video_callable=lambda mode: mode == "evaluation", **wrapper_kwargs)
         # env = wrappers.Monitor(env, **wrapper_kwargs)
