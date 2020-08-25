@@ -1,3 +1,4 @@
+import collections
 import os
 
 import cv2
@@ -67,6 +68,32 @@ class ImageToPytorchChannelOrdering(gym.ObservationWrapper):
         return np.einsum("hwc->chw", observation)
 
 
+class MaxAndSkipEnv(gym.Wrapper):
+    def __init__(self, env, skip_frames=4):
+        super().__init__(env)
+        self.skip_frames = skip_frames
+        self.frame_buffer = collections.deque(maxlen=2)
+
+    def reset(self):
+        self.frame_buffer.clear()
+        observation = self.env.reset()
+        self.frame_buffer.append(observation)
+        return observation
+
+    def step(self, action):
+        total_reward = 0.0
+        done = False
+        for _ in range(self.skip_frames):
+            o, r, done, info = self.env.step(action)
+            total_reward += r
+            self.frame_buffer.append(o)
+            if done:
+                break
+
+        max_frame = np.max(np.stack(self.frame_buffer), axis=0)
+        return max_frame, total_reward, done, info
+
+
 class EvalMonitor(wrappers.Monitor):
     def __init__(self, env, **kwargs):
         super().__init__(env, **kwargs)
@@ -84,6 +111,7 @@ class EvalMonitor(wrappers.Monitor):
 @gin.configurable
 def create_environment(name, gym_make_kwargs=dict(), save_videos=False, wrapper_kwargs=dict()):
     env = gym.make(name, **gym_make_kwargs)
+    env = MaxAndSkipEnv(env)
     env = ProcessFrame(env)
     env = ScaleImage(env)
     env = ImageToPytorchChannelOrdering(env)

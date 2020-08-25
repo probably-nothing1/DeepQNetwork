@@ -25,7 +25,3 @@ def create_fully_connected_network(sizes, output_activation_fn=Identity):
     activations = [Tanh() for _ in range(len(fc_layers) - 1)] + [output_activation_fn()]
     layers = [x for x in chain(*zip_longest(fc_layers, activations)) if x is not None]
     return nn.Sequential(*layers)
-
-
-def dict_iter2tensor(dict_of_iterable):
-    return {key: torch.as_tensor(value, dtype=torch.float32) for key, value in dict_of_iterable.items()}
