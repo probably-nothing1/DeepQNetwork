@@ -1,22 +1,21 @@
 # -----------------------------------------------------------------------------
 # ----------------------------         TRAINING          ----------------------
 # -----------------------------------------------------------------------------
-main.device = 'cuda'
-main.epochs = 2
-main.lr = 3e-4
-main.weight_decay = 10e-4
+main.device = 'cuda:0' # 'cpu' or 'cuda:0'
+main.lr = 1e-4
+main.weight_decay = 1e-4
+main.max_steps = 150000
 
 # -----------------------------------------------------------------------------
-# ----------------------------   TRAJECTORY COLLECTION   ----------------------
+# ------------------------------   EXPERIENCE BUFFER   ------------------------
 # -----------------------------------------------------------------------------
-collect_trajectories.min_num_of_steps_in_epoch = 1000
-Trajectory.gamma = 0.99
+ExperienceBuffer.size = 10000
 
 
 # -----------------------------------------------------------------------------
 # ---------------------------------   EVALUATE   ------------------------------
 # -----------------------------------------------------------------------------
-main.record_eval_video_rate = 1
+main.record_eval_video_rate = 20
 evaluate.runs = 1
 
 
@@ -29,11 +28,11 @@ evaluate.runs = 1
 # -----------------------------------------------------------------------------
 # ------------------------------    ENVIRONMENT    ----------------------------
 # -----------------------------------------------------------------------------
-create_environment.name = 'Pong-v0'
+create_environment.name = 'PongNoFrameskip-v4'
 create_environment.gym_make_kwargs = {}
 create_environment.save_videos = True
 create_environment.wrapper_kwargs = {
-    "directory": "./videos/",
+    "directory": "./videos_gpu_0/",
     "force": True,
     "write_upon_reset": True
 }
