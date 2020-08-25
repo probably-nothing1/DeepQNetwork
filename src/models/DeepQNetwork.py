@@ -11,10 +11,13 @@ class DeepQNetwork(nn.Module):
         self.action_space = action_space
         self.conv_net = nn.Sequential(
             nn.Conv2d(self.input_channels, 32, kernel_size=8, stride=4),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
         flatten_size = self._compute_conv_out(observation_shape)
