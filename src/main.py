@@ -89,20 +89,21 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
             if steps_collected % 1000 == 0:
                 dqn_target.load_state_dict(dqn.state_dict())
 
+        # evaluate
         evaluate(dqn, env, device)
         episode += 1
         if episode % record_eval_video_rate == 0:
             record_evaluation_video(dqn, env, device)
 
-        print(
-            f"Episde {episode}. Simulation episode reward {total_reward} steps {episode_steps}. FPS: {episode_steps / episode_total_time}"
-        )
+        # logging
+        fps = int(episode_steps / episode_total_time)
+        print(f"Episde {episode} | Reward {total_reward} | Steps {episode_steps} | FPS: {fps}")
         wandb.log(
             {
                 "Episode": episode,
                 "Simulation Episode Total Reward": total_reward,
                 "Simulation Episode Steps": episode_steps,
-                "Simulation FPS": episode_steps / episode_total_time,
+                "Simulation FPS": fps,
             }
         )
 
