@@ -1,9 +1,9 @@
 # -----------------------------------------------------------------------------
 # ----------------------------         TRAINING          ----------------------
 # -----------------------------------------------------------------------------
-main.device = 'cuda:1' # 'cpu' or 'cuda:0' ...
+main.device = 'cuda:1'
 main.lr = 1e-4
-main.weight_decay = 1e-4
+main.weight_decay = 0 # 1e-4
 main.max_steps = 150000
 
 # -----------------------------------------------------------------------------
@@ -22,13 +22,20 @@ evaluate.runs = 1
 # -----------------------------------------------------------------------------
 # ----------------------------        MODELS         --------------------------
 # -----------------------------------------------------------------------------
-# create_actor.hidden_sizes = (128, 128, 128)
+DeepQNetwork.conv_sizes = [
+    [-1, 32, 8, 4],
+    [32, 64, 4, 2],
+    [64, 64, 3, 1]
+]
+DeepQNetwork.fc_sizes = [512]
+DeepQNetwork.use_bn = True
 
 
 # -----------------------------------------------------------------------------
 # ------------------------------    ENVIRONMENT    ----------------------------
 # -----------------------------------------------------------------------------
-create_environment.name = 'PongNoFrameskip-v4'
+# create_environment.name = 'PongNoFrameskip-v4'
+create_environment.name = 'CartPole-v0'
 create_environment.gym_make_kwargs = {}
 create_environment.save_videos = True
 create_environment.wrapper_kwargs = {
