@@ -1,4 +1,4 @@
-import copy
+import math
 import sys
 from time import time
 
@@ -10,38 +10,38 @@ from torch.optim import Adam
 
 from data.ExperienceBuffer import ExperienceBuffer
 from evaluation import evaluate, record_evaluation_video
-from models.DeepQNetwork import DeepQNetwork
+from models.DeepQNetwork import create_dqn_agent
 from utils.env_utils import create_environment
 from utils.utils import set_seed, setup_logger
 
-start_epislon = 1.0
-end_epsilon = 0.01
+
+@gin.configurable
+def get_epsilon(steps, eps_start=0.9, eps_end=0.02, eps_decay=300):
+    eps = eps_end + (eps_start - eps_end) * math.exp(-steps / eps_decay)
+    eps = max(eps, eps_end)
+    wandb.log({"Epsilon": eps})
+    return eps
 
 
-def get_epsilon(steps, max_steps):
-    new_epislon = start_epislon - (start_epislon - end_epsilon) * steps / max_steps
-    return max(new_epislon, end_epsilon)
-
-
-def train_dqn(deep_q_network, deep_q_network_target, dataloader, dqn_optimizer, gamma=0.99):
+@gin.configurable
+def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, gamma, device, bs):
     training_start_time = time()
     total_loss = 0
-    for o, a, r, next_o, done in dataloader:
-        dqn_optimizer.zero_grad()
-        q_vals = deep_q_network.get_q_values(o, a)
-        max_q_val_target = deep_q_network_target.get_max_q_values(next_o)
-        temp = gamma * max_q_val_target
-        temp2 = done * temp
-        expected_q_val_target = r + temp2
-        loss = mse_loss(q_vals, expected_q_val_target)
-        loss.backward()
-        dqn_optimizer.step()
-        total_loss += loss.item()
-        break
 
-    wandb.log(
-        {"Training Loss": total_loss, "Training FPS": len(dataloader.batch_size) / (time() - training_start_time)}
-    )
+    o, a, r, next_o, done = experience_buffer.get_batch(bs, device)
+    q_vals = dqn.get_q_values(o, a)
+
+    max_next_q_values = dqn_target.get_max_q_values(next_o)
+    q_vals_target = r + (1 - done) * gamma * max_next_q_values
+
+    loss = mse_loss(q_vals, q_vals_target)
+
+    dqn_optimizer.zero_grad()
+    loss.backward()
+    dqn_optimizer.step()
+    total_loss += loss.item()
+
+    wandb.log({"Training Loss": total_loss, "Training FPS": bs / (time() - training_start_time)})
 
 
 @gin.configurable
@@ -51,56 +51,60 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
     setup_logger()
     set_seed(env)
 
-    deep_q_network = DeepQNetwork(env.observation_space.shape, env.action_space).to(device)
-    deep_q_network_target = DeepQNetwork(env.observation_space.shape, env.action_space).to(device)
-    # deep_q_network_target = copy.deepcopy(deep_q_network)
+    dqn = create_dqn_agent(env).to(device)
+    dqn_target = create_dqn_agent(env).to(device)
     experience_buffer = ExperienceBuffer(observation_shape=env.observation_space.shape)
-    dqn_optimizer = Adam(deep_q_network.parameters(), lr=lr, weight_decay=weight_decay)
+    dqn_optimizer = Adam(dqn.parameters(), lr=lr, weight_decay=weight_decay)
+
+    print(dqn)
 
     steps_collected = 0
     episode = 0
     while steps_collected < max_steps:
-        episode_start_time = time()
+        episode_total_time = 0
         o = env.reset()
         total_reward = 0
         done = False
         episode_steps = 0
         while not done:
+            start_iter = time()
             o_tensor = torch.as_tensor(o, dtype=torch.float32).to(device)
-            epsilon = get_epsilon(steps_collected, max_steps)
-            wandb.log({"Epsilon": epsilon})
-            action = deep_q_network.sample(o_tensor, epsilon)
+            epsilon = get_epsilon(steps_collected)
+            a = dqn.sample(o_tensor, epsilon)
 
-            next_o, reward, done, info = env.step(action)
+            next_o, reward, done, info = env.step(a)
             total_reward += reward
 
-            experience_buffer.append(o, action, reward, next_o, done)
+            experience_buffer.append(o, a, reward, next_o, done)
             o = next_o.copy()
             episode_steps += 1
             steps_collected += 1
+            episode_total_time += time() - start_iter
 
-            if experience_buffer.is_ready():
-                dataloader = experience_buffer.create_dataloder(device)
-                train_dqn(deep_q_network, deep_q_network_target, dataloader, dqn_optimizer, gamma=0.99)
+            if experience_buffer.size > 64:
+                train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device=device)
 
+            if steps_collected % 1000 == 0:
+                dqn_target.load_state_dict(dqn.state_dict())
+
+        evaluate(dqn, env, device)
         episode += 1
-        evaluate(deep_q_network, env, device)
         if episode % record_eval_video_rate == 0:
-            record_evaluation_video(deep_q_network, env, device)
-
-        deep_q_network_target.load_state_dict(deep_q_network.state_dict())
+            record_evaluation_video(dqn, env, device)
 
         wandb.log(
             {
                 "Episode": episode,
                 "Simulation Episode Total Reward": total_reward,
                 "Simulation Episode Steps": episode_steps,
-                "Simulation FPS": episode_steps / (time() - episode_start_time),
+                "Simulation FPS": episode_steps / episode_total_time,
             }
         )
 
 
 # python src/main.py experiments/dev_dqn_config_gpu_0.gin
+# python src/main.py experiments/dev_dqn_config_gpu_1.gin
+# xvfb-run -a python src/main.py experiments/test_CartPole_cpu.gin
 if __name__ == "__main__":
     experiment_file = sys.argv[1]
     gin.parse_config_file(experiment_file)

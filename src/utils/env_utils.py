@@ -108,14 +108,50 @@ class EvalMonitor(wrappers.Monitor):
         return self.video_callable(self.mode)
 
 
+class RewardModifier(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.steps = 0
+
+    def modify_reward(self, reward, done):
+        if done:
+            if self.steps < 30:
+                reward -= 10
+            else:
+                reward = -1
+        if self.steps > 100:
+            reward += 1
+        if self.steps > 200:
+            reward += 1
+        if self.steps > 300:
+            reward += 1
+
+        return reward
+
+    def step(self, action):
+        self.steps += 1
+        observation, reward, done, info = self.env.step(action)
+        reward = self.modify_reward(reward, done)
+        return observation, reward, done, info
+
+    def reset(self):
+        self.steps = 0
+        return self.env.reset()
+
+
 @gin.configurable
 def create_environment(name, gym_make_kwargs=dict(), save_videos=False, wrapper_kwargs=dict()):
     env = gym.make(name, **gym_make_kwargs)
-    env = MaxAndSkipEnv(env)
-    env = ProcessFrame(env)
-    env = ScaleImage(env)
-    env = ImageToPytorchChannelOrdering(env)
-    env = FrameBuffer(env, k_frames=4)
+    if name == "CartPole-v0":
+        env = wrappers.TimeLimit(env.unwrapped, max_episode_steps=1000)
+        env = RewardModifier(env)
+    if name.startswith("Pong"):
+        print(f"Adding wrapers to {name}")
+        env = MaxAndSkipEnv(env)
+        env = ProcessFrame(env)
+        env = ScaleImage(env)
+        env = ImageToPytorchChannelOrdering(env)
+        env = FrameBuffer(env, k_frames=4)
     if save_videos:
         env = EvalMonitor(env, video_callable=lambda mode: mode == "evaluation", **wrapper_kwargs)
         # env = wrappers.Monitor(env, **wrapper_kwargs)

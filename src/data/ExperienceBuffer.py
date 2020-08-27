@@ -1,44 +1,38 @@
 import gin
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, TensorDataset
 
 
 @gin.configurable
 class ExperienceBuffer:
-    def __init__(self, size, observation_shape):
+    def __init__(self, observation_shape, capacity):
         self.index = 0
-        self.size = size
-        self.observations = np.zeros((size, *observation_shape))
-        self.next_observations = np.zeros((size, *observation_shape))
-        self.actions = np.zeros(size)
-        self.rewards = np.zeros(size)
-        self.not_done = np.zeros(size)
+        self.capacity = capacity
+        self.observations = np.zeros((capacity, *observation_shape))
+        self.next_observations = np.zeros((capacity, *observation_shape))
+        self.actions = np.zeros(capacity)
+        self.rewards = np.zeros(capacity)
+        self.done = np.zeros(capacity)
         self.is_full = False
+        self.size = 0
 
     def append(self, observation, action, reward, next_observation, done):
         self.observations[self.index] = observation
         self.next_observations[self.index] = next_observation
         self.actions[self.index] = action
         self.rewards[self.index] = reward
-        self.not_done[self.index] = not done
+        self.done[self.index] = done
         self.index += 1
-        if not self.is_full and self.index == self.size:
-            self.is_full = True
-        self.index %= self.size
+        if self.size < self.capacity:
+            self.size += 1
+        self.index %= self.capacity
 
-    def create_dataloder(self, device):
-        dataset = TensorDataset(
-            torch.as_tensor(self.observations, dtype=torch.float32, device=device),
-            torch.as_tensor(self.actions, dtype=torch.int64, device=device),
-            torch.as_tensor(self.rewards, dtype=torch.float32, device=device),
-            torch.as_tensor(self.next_observations, dtype=torch.float32, device=device),
-            torch.as_tensor(self.not_done, dtype=torch.float32, device=device),
+    def get_batch(self, bs, device):
+        indices = np.random.choice(self.size, bs, replace=False)
+        return (
+            torch.as_tensor(self.observations[indices], dtype=torch.float32, device=device),
+            torch.as_tensor(self.actions[indices], dtype=torch.int64, device=device),
+            torch.as_tensor(self.rewards[indices], dtype=torch.float32, device=device),
+            torch.as_tensor(self.next_observations[indices], dtype=torch.float32, device=device),
+            torch.as_tensor(self.done[indices], dtype=torch.float32, device=device),
         )
-        return DataLoader(dataset, batch_size=32, shuffle=True, drop_last=True)
-
-    def clear(self):
-        self.trajectories.clear()
-
-    def is_ready(self):
-        return self.is_full

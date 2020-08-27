@@ -53,3 +53,5 @@ def evaluate(agent, env, device, runs=1):
             "Test Min Reward": total_rewards.min(),
         }
     )
+
+    return total_rewards.mean()
