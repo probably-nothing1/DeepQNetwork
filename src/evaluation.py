@@ -24,7 +24,7 @@ def evaluate_one(agent, env, device):
     o = env.reset()
     done = False
     while not done:
-        o = torch.as_tensor(o, dtype=torch.float32).to(device)
+        o = torch.as_tensor(o, dtype=torch.float32).unsqueeze(0).to(device)
 
         best_action = agent.sample(o, epsilon=0)
         next_o, reward, done, info = env.step(best_action)
@@ -37,7 +37,7 @@ def evaluate_one(agent, env, device):
 
 
 @gin.configurable
-def evaluate(agent, env, device, runs=1):
+def evaluate(agent, env, device, runs=10):
     total_rewards = np.zeros(runs)
     total_steps = np.zeros(runs)
     for i in range(runs):

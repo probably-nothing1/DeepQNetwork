@@ -142,7 +142,7 @@ class RewardModifier(gym.Wrapper):
 @gin.configurable
 def create_environment(name, gym_make_kwargs=dict(), save_videos=False, wrapper_kwargs=dict()):
     env = gym.make(name, **gym_make_kwargs)
-    if name == "CartPole-v0":
+    if name in ["CartPole-v0"]:
         env = wrappers.TimeLimit(env.unwrapped, max_episode_steps=1000)
         env = RewardModifier(env)
     if name.startswith("Pong"):

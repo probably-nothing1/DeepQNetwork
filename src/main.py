@@ -24,7 +24,10 @@ def get_epsilon(steps, eps_start=0.9, eps_end=0.02, eps_decay=300):
 
 
 @gin.configurable
-def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, gamma, device, bs):
+def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device, gamma, bs):
+    if experience_buffer.size < bs:
+        return
+
     training_start_time = time()
     total_loss = 0
 
@@ -68,7 +71,7 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
         episode_steps = 0
         while not done:
             start_iter = time()
-            o_tensor = torch.as_tensor(o, dtype=torch.float32).to(device)
+            o_tensor = torch.as_tensor(o, dtype=torch.float32).unsqueeze(0).to(device)
             epsilon = get_epsilon(steps_collected)
             a = dqn.sample(o_tensor, epsilon)
 
@@ -81,8 +84,7 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
             steps_collected += 1
             episode_total_time += time() - start_iter
 
-            if experience_buffer.size > 64:
-                train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device=device)
+            train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device=device)
 
             if steps_collected % 1000 == 0:
                 dqn_target.load_state_dict(dqn.state_dict())
@@ -92,6 +94,9 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
         if episode % record_eval_video_rate == 0:
             record_evaluation_video(dqn, env, device)
 
+        print(
+            f"Episde {episode}. Simulation episode reward {total_reward} steps {episode_steps}. FPS: {episode_steps / episode_total_time}"
+        )
         wandb.log(
             {
                 "Episode": episode,

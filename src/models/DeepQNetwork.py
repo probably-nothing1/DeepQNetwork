@@ -21,13 +21,11 @@ def create_dqn_agent(env):
 
 @gin.configurable
 class DeepQNetwork(nn.Module):
-    def __init__(self, observation_shape, action_space, conv_sizes, fc_sizes, use_bn):
+    def __init__(self, observation_shape, action_space, fc_sizes):
         super().__init__()
         self.input_dim = observation_shape[0]
         self.action_space = action_space
-        self.model = create_fully_connected_network(
-            [self.input_dim, *fc_sizes, self.action_space.n], activation_fn=nn.ReLU
-        )
+        self.model = create_fully_connected_network([self.input_dim, *fc_sizes, self.action_space.n])
 
     def forward(self, observations):
         return self.model(observations)
@@ -54,10 +52,9 @@ class DeepQNetwork(nn.Module):
 @gin.configurable
 class AtariDeepQNetwork(DeepQNetwork):
     def __init__(self, observation_shape, action_space, conv_sizes, fc_sizes, use_bn):
-        super().__init__()
-        self.input_channels = observation_shape[0]
+        super().__init__(observation_shape, action_space, fc_sizes)
         self.action_space = action_space
-        conv_sizes[0][0] = self.input_channels
+        conv_sizes[0][0] = observation_shape[0]
         conv_net = create_conv_network(conv_sizes, use_bn=use_bn)
         fc_input_size = self._compute_conv_out(conv_net, observation_shape)
         fc_net = create_fully_connected_network([fc_input_size, *fc_sizes, self.action_space.n], activation_fn=nn.ReLU)
