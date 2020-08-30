@@ -154,6 +154,4 @@ def create_environment(name, gym_make_kwargs=dict(), save_videos=False, wrapper_
         env = FrameBuffer(env, k_frames=4)
     if save_videos:
         env = EvalMonitor(env, video_callable=lambda mode: mode == "evaluation", **wrapper_kwargs)
-        # env = wrappers.Monitor(env, **wrapper_kwargs)
-        # env = wrappers.Monitor(env, "./videos/" + str(time.time()) + "/", force=True, write_upon_reset=True)
     return env
