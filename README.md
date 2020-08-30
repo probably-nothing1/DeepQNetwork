@@ -4,13 +4,21 @@ DQN model with various tricks and improvements
 DONE:
 * working on CartPole and Pong
 * DQN with target network
-* Polayk averaging
-
-TODO:
-* n-step q-learning
 * double DQN
+* tweak wrappers so every point is one game in pong
+
+IN PROGRESS:
+* Polayk averaging (not working ?)
+
+TODO algo trick:
+* n-step q-learning
 * noisy network
 * prioritized buffer
 * clipped double q learning ?
 * Advantage learning (Dueling DQN)
 * Categorical DQN
+
+TODO perf tricks:
+* move ExperienceBuffer to GPU (? idk if that helps)
+* paralle simulation and training
+* many envs in parallel (?)
