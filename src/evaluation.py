@@ -37,21 +37,7 @@ def evaluate_one(agent, env, device):
 
 
 @gin.configurable
-def evaluate(agent, env, device, runs=10):
-    total_rewards = np.zeros(runs)
-    total_steps = np.zeros(runs)
-    for i in range(runs):
-        total_reward, steps = evaluate_one(agent, env, device)
-        total_rewards[i] = total_reward
-        total_steps[i] = steps
-
-    wandb.log(
-        {
-            "Test Mean Steps": total_steps.mean(),
-            "Test Mean Reward": total_rewards.mean(),
-            "Test Max Reward": total_rewards.max(),
-            "Test Min Reward": total_rewards.min(),
-        }
-    )
-
-    return total_rewards.mean()
+def evaluate(agent, env, device):
+    total_reward, steps = evaluate_one(agent, env, device)
+    wandb.log({"Test Steps": steps, "Test Reward": total_reward})
+    return total_reward, steps
