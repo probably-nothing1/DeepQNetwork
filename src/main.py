@@ -10,8 +10,9 @@ from torch.optim import Adam
 
 from data.ExperienceBuffer import ExperienceBuffer
 from evaluation import evaluate, record_evaluation_video
-from models.DeepQNetwork import create_dqn_agent
+from models import create_dqn_agent
 from utils.env_utils import create_environment
+from utils.tricks import polyak_averaging
 from utils.utils import set_seed, setup_logger
 
 
@@ -24,7 +25,7 @@ def get_epsilon(steps, eps_start=0.9, eps_end=0.02, eps_decay=300):
 
 
 @gin.configurable
-def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device, gamma, bs):
+def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device, gamma, bs, use_double_dqn=False):
     if experience_buffer.size < bs:
         return
 
@@ -34,7 +35,12 @@ def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device, gamma, 
     o, a, r, next_o, done = experience_buffer.get_batch(bs, device)
     q_vals = dqn.get_q_values(o, a)
 
-    max_next_q_values = dqn_target.get_max_q_values(next_o)
+    if use_double_dqn:
+        best_action_look_ahead = dqn.get_max_actions(next_o)
+        max_next_q_values = dqn_target.get_q_values(next_o, best_action_look_ahead)
+    else:
+        max_next_q_values = dqn_target.get_max_q_values(next_o)
+
     q_vals_target = r + (1 - done) * gamma * max_next_q_values
 
     loss = mse_loss(q_vals, q_vals_target)
@@ -48,7 +54,7 @@ def train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device, gamma, 
 
 
 @gin.configurable
-def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
+def main(lr, weight_decay, record_eval_video_rate, max_steps, device, early_stop_mean_reward, use_polyak_averaging):
     env = create_environment()
 
     setup_logger()
@@ -61,6 +67,7 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
 
     print(dqn)
 
+    runnig_mean_reward = 0
     steps_collected = 0
     episode = 0
     while steps_collected < max_steps:
@@ -78,7 +85,13 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
             next_o, reward, done, info = env.step(a)
             total_reward += reward
 
-            experience_buffer.append(o, a, reward, next_o, done)
+            if env.unwrapped.spec.id.startswith("Pong") and not done and reward != 0:
+                # mark termination of sub-game when point is handed. Only Pong envs
+                experience_buffer.append(o, a, reward, next_o, True)
+                env.step(0)  # NOOP
+            else:
+                experience_buffer.append(o, a, reward, next_o, done)
+
             o = next_o.copy()
             episode_steps += 1
             steps_collected += 1
@@ -86,14 +99,23 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
 
             train_dqn(dqn, dqn_target, experience_buffer, dqn_optimizer, device=device)
 
-            if steps_collected % 1000 == 0:
+            if use_polyak_averaging:
+                polyak_averaging(dqn_target, dqn)
+            elif steps_collected % 1000 == 0:
                 dqn_target.load_state_dict(dqn.state_dict())
 
-        # evaluate
-        evaluate(dqn, env, device)
+        # evaluate, early stop and record
         episode += 1
         if episode % record_eval_video_rate == 0:
             record_evaluation_video(dqn, env, device)
+
+        mean_reward, _ = evaluate(dqn, env, device)
+        if episode == 1:
+            runnig_mean_reward = mean_reward
+        else:
+            runnig_mean_reward = 0.9 * runnig_mean_reward + 0.1 * mean_reward
+        if early_stop_mean_reward < runnig_mean_reward:
+            return
 
         # logging
         fps = int(episode_steps / episode_total_time)
@@ -104,6 +126,7 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device):
                 "Simulation Episode Total Reward": total_reward,
                 "Simulation Episode Steps": episode_steps,
                 "Simulation FPS": fps,
+                "Moving Average Test Reward": runnig_mean_reward,
             }
         )
 
