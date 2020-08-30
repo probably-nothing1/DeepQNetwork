@@ -7,13 +7,19 @@ from utils.utils import create_fully_connected_network
 
 @gin.configurable
 class DeepQNetwork(nn.Module):
-    def __init__(self, observation_shape, action_space, fc_sizes):
+    def __init__(self, observation_shape, action_space, fc_sizes, advantage=False):
         super().__init__()
         self.input_dim = observation_shape[0]
         self.action_space = action_space
         self.model = create_fully_connected_network([self.input_dim, *fc_sizes, self.action_space.n])
+        self.advantage = advantage
+        if self.advantage:
+            self.critic = create_fully_connected_network([self.input_dim, *fc_sizes, 1])
 
     def forward(self, observations):
+        if self.advantage:
+            advantages, state_value = self.model(observations), self.critic(observations)
+            return state_value + (advantages - advantages.mean(dim=1, keepdim=True))
         return self.model(observations)
 
     def get_q_values(self, observations, actions):

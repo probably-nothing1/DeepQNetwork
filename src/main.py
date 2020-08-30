@@ -85,12 +85,13 @@ def main(lr, weight_decay, record_eval_video_rate, max_steps, device, early_stop
             next_o, reward, done, info = env.step(a)
             total_reward += reward
 
-            if env.unwrapped.spec.id.startswith("Pong") and not done and reward != 0:
-                # mark termination of sub-game when point is handed. Only Pong envs
-                experience_buffer.append(o, a, reward, next_o, True)
-                env.step(0)  # NOOP
-            else:
-                experience_buffer.append(o, a, reward, next_o, done)
+            # if env.unwrapped.spec.id.startswith("Pong") and not done and reward != 0:
+            #     # mark termination of sub-game when point is handed. Only Pong envs
+            #     experience_buffer.append(o, a, reward, next_o, True)
+            #     env.step(0), env.step(0)  # NOOP
+            # else:
+            #     experience_buffer.append(o, a, reward, next_o, done)
+            experience_buffer.append(o, a, reward, next_o, done)
 
             o = next_o.copy()
             episode_steps += 1

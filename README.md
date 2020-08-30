@@ -6,6 +6,7 @@ DONE:
 * DQN with target network
 * double DQN
 * tweak wrappers so every point is one game in pong
+* Advantage learning (Dueling DQN)
 
 IN PROGRESS:
 * Polayk averaging (not working ?)
@@ -15,7 +16,6 @@ TODO algo trick:
 * noisy network
 * prioritized buffer
 * clipped double q learning ?
-* Advantage learning (Dueling DQN)
 * Categorical DQN
 
 TODO perf tricks:
